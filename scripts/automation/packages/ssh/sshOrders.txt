@@ -1,0 +1,25 @@
+ls -la
+ls -h 
+cd ..
+mkdir test
+touch file1.txt
+echo "Das hier ist ein Test"
+ps -ef 
+du -h
+df -h
+touch file2.txt
+touch file3.txt
+rm file1.txt
+rm file2.txt
+crontab -l
+cd /home
+cd /var/log
+cat /var/log/syslog
+mkdir folder
+rm -R test
+chown 200 fehler
+touch echoBlah.txt
+rm echoBlah.txt
+cd /home/debian/
+cat /etc/apache/
+ifconfig

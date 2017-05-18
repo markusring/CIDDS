@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+<html lang="en"> 
+<head>
+	<title>Openstack Dashboard</title>
+	<meta charset="utf-8"/>
+	
+	<meta http-equiv="cache-control" content="no-cache"/>
+	<meta http-equiv="cache-control" content="no-store"/>
+	<meta http-equiv="pragma" content="no-cache"/>
+	<meta http-equiv="expires" content="0"/>
+	
+	<!-- jQuery -->
+	<script src="https://ajax.googleapis.com/ajax/libs/jquery/3.1.1/jquery.min.js"></script>
+	
+	<!-- Bootstrap -->
+	<link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css"></link>
+	<script type="text/javascript" src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.4/js/bootstrap.min.js"></script>
+	
+	<script type="text/javascript">
+		
+		// Reload page every 60 seconds
+		setInterval(updatePage, 60 * 1000);
+		
+		// If the page is called directly, the contents have to be recreated
+		$(document).ready(updatePage);
+
+		// Update page 
+		function updatePage() {
+			
+			// Output the current time stamp
+			$("#lastUpdate").text(new Date());
+			
+			// Empty the table
+			$("#instances").children().remove();
+			$("#footer").children().remove();
+			
+			// Fetch the list of available clients
+			// Write info about clients in table
+			$.ajax({
+				type: "GET",
+				url: "listOfInstances",
+				dataType: "text",
+				success: function(data) {getInstances(data);}
+			});
+		
+			// Write the total run times of all clients in footer of the table
+			$.ajax({
+				type: "GET",
+				url: "allActsRuntimes",
+				dataType: "text",
+				success: function(data) {getAllActsRuntimes(data);}
+			});
+		}
+		
+		// Write absolute and relative run times of all activities of all clients in the footer
+		function getAllActsRuntimes(allText) {
+		
+			// Running times are ;-separated
+			var allValues = allText.split(';');
+			
+			// 11 Skip the columns
+			$("#footer").append("<th colspan='9'>" + "</th>");
+			
+			// Write all runtimes in table
+			allValues.forEach(function(item) {
+			
+				// Convert runtimes into speaking values
+				seconds = parseFloat(item.split(',')[0]);
+				hours = seconds / (60 * 60);
+				days = hours / 24;
+				weeks = days / 7;
+				
+				// Read the relative fraction
+				percent = parseFloat(item.split(',')[1]);
+				
+				// Assemble the contents of the cell
+				newTH = "<td class='text-center myfooter' style='padding:0'" + 
+						"<div><strong>" + percent.toFixed(2) + "&nbsp%</strong></div>" +
+						"<div>" + hours.toFixed(2) + "&nbsp;h</div>" + 
+						"<div>" + days.toFixed(2) + "&nbsp;d</div>" + 
+						"<div>" + weeks.toFixed(2) + "&nbsp;w</div>" + 
+						"</td>";
+				
+				$("#footer").append(newTH);
+			});
+		}
+		
+		// Get info on activities
+		function getInstances(allText) {
+					
+			var allValues = allText.split(';');
+			var instances = [];
+			
+			// Iterate through each line
+			allValues.forEach(function(value) {			
+				instances.push(value);
+			});
+			
+			// Write line to table for each client
+			instances.forEach(function(instance) {
+				
+				// Create new tr in tbody for each client
+				$("#instances").append("<tr id='" + instance + "'>");
+				
+				var tr = $("#instances").find("#" + instance);
+				
+				// Write client info in table
+				$.ajax({
+					type: "GET",
+					url: "instances/" + instance + ".conf",
+					dataType: "text",
+					success: function(data) {getInstanceInfos(data, instance);}
+				});
+			
+				$("#instances").append("</tr>");
+			});
+		}
+		
+		// Get info on activities
+		function getInstanceInfos(allText, instance) {
+	
+			// Get the line from table which is intended for the client
+			var tr = $("#instances").find("#" + instance);
+			
+			var allValues = allText.split(';');
+			
+			var currentDay = new Date().getDay();
+			var i = 0;
+			
+			// Go through each line
+			allValues.forEach(function(value, i) {
+				
+				// The first cell of each line is used to set up a tooltip that displays the MAC address of the client
+				if(i == 0) {
+					tr.append("<td data-toggle='tooltip' title='My MAC (as int) is " + instance + "'>" + value + "</td>");
+				}	else {
+					tr.append("<td>" + value + "</td>");
+					
+					// Determine if it is a working day
+					// Since the days start from i = 2 in the config file and currentDay is between 1 and 7,
+					// an offset of 1 must be subtracted from the index
+					if(value == "-" && i-1 == currentDay) {
+						tr.attr("style", "background-color:lightgray;");
+					}
+				}
+				
+			});
+			
+			// Write info about activities in table
+			$.ajax({
+				type: "GET",
+				url: "instances/" + instance + ".log",
+				dataType: "text",
+				success: function(data) {getActivityInfos(data, instance);}
+			});
+		}
+		
+		// Fetch client infos 
+		function getActivityInfos(allText, instance) {
+				
+			// Get the line from table which is intended for the client
+			var tr = $("#instances").find("#" + instance);
+			
+			var allLines = allText.split(';');
+			
+			// Holds the time in ms between now and the latest execution of an activity
+			// Required to determine if a client "hangs"
+			var mostRecentDiff = 5*60*60*1000;
+			
+			// Sum of all run times of all activities of a client
+			// Output at the end of the line of the client
+			var sumRuntimes = 0;
+			
+			// Each record contains the following values
+			// 0. Name of the activity
+			// 1. Number of executions
+			// 2. End time of the last execution
+			// 3. Duration of the complete execution in sec
+			// 4. rel. Percentage of activity on all activities
+			// 5. Time of last error
+			// Go through each line (corresponds to one activity) 
+			allLines.forEach(function(activity) {
+			
+				// Divide into components
+				values = activity.split(',');
+				
+				sumRuntimes += parseFloat(values[3]);
+				
+				// Convert timestamp of the last update of the activity in UTC format
+				var lastActFeedback = new Date("2017-01-01T00:00:00");
+				if(values[2] != null) {				
+					lastActFeedback = new Date(values[2].split(' ')[0] + "T" + values[2].split(' ')[1]);
+				}
+				
+				// Calculate the difference between now and the time stamp (returned in ms)
+				diff = (new Date() - lastActFeedback)
+				
+				// Store the shortest difference
+				if(diff < mostRecentDiff) {
+					mostRecentDiff = diff;
+				}
+				
+				//  Read the absolute part of the runtime
+				if(values[3] != null) {
+					runtimeInSec = parseFloat(values[3]);
+				} else {
+					runtimeInSec = 0;
+				}
+				runtimeInH = runtimeInSec / (60 * 60);
+				
+				// Read the relative part of the runtime
+				var percentage = 0;
+				if(values[4] != null) {
+					if(parseFloat(values[4]) < 1.0 && parseFloat(values[4]) > 0.0) {
+						percentage = "< 1";
+					} else {
+						percentage = values[4].split('.')[0];
+					}
+				}
+				
+				// Color coding to highlight last error
+				// If the error occurred during the last execution of the activity, the field is marked in red
+				// If the error is already longer and the activity has been successfully executed again, the field is yellowed
+				var bgcolor = "bg-default";
+				if(values[5] != "") {
+					bgcolor = "bg-warning"
+				}
+				if(values[2] == values[5]) {
+					bgcolor = "bg-danger"
+				}
+				
+				// Each field is split horizontally
+				// Above is the percentage of activity compared to all activities
+				// Below is the time of the last error (highlighted in color)
+				var errorDateTime = "";
+				if(values[5] != null) {
+					errorDateTime = values[5];
+				}
+				
+				
+				var tooltipText = "Runtime: " + runtimeInH.toFixed(2) + "&nbsp;h&#013;" + 
+						"Executions: " + values[1] + "&#013;" + 
+						"Last time: " + values[2];
+				
+				tr.append("<td class='" + values[0] + "' style='padding:0'>" + 
+						"<div data-toggle='tooltip' title='" + tooltipText + "'>" + percentage + "&nbsp%</div>" + 
+						"<div class='small bgcolor " + bgcolor + "'>" + errorDateTime.split('.')[0] + "</div></td>");
+			});
+			
+			// Based on the latest activity, it is decided whether the client "hangs"
+			var hours = parseInt($("#timeout").val()) / 60;
+			if(mostRecentDiff > hours * (60 * 60 * 1000)) {
+				tr.attr("class", "bgcolor bg-danger");
+			}
+			
+			sumRuntimesInH = sumRuntimes / (60 * 60);
+			sumRuntimesInD = sumRuntimesInH / 24;
+			sumRuntimesInW = sumRuntimesInD / 7;
+			tr.append("<td class='small'>" + sumRuntimesInH.toFixed(2) + "&nbsph<br/>" + sumRuntimesInD.toFixed(2) + "&nbspd<br/>" + sumRuntimesInW.toFixed(2) + "&nbspw</td>");
+			
+		}
+	</script>
+	
+	<style>
+		
+		/* Round upper corner of the table round */
+		tr:first-child th:nth-child(1) { 
+			border-radius: 15px 0 0 0;
+			border-left: 0px !important;
+		}
+		
+		/* Round right upper corner of the left side of the table */
+		tr:first-child th:nth-child(3) {
+			border-radius: 0 15px 0 0;
+		}
+		
+		/* White line for tapping the left and right sections of the table */
+		tr:first-child th:nth-child(3), tr:nth-child(2) th:nth-child(8) {
+			border-right: 1px solid white !important;
+		}
+		
+		/* Round upper corner of the right area round n */
+		tr:first-child th:nth-child(4) {
+			border-radius: 15px 0 0 0;
+		}
+		
+		/*  Round the upper right corner of the table */
+		tr:first-child th:last-child { 
+			border-radius: 0 15px 0 0; 
+		}
+		
+		/* Round the lower left corner of the footer */
+		tfoot tr td:last-child {
+			border-radius: 0 0 15px 0;
+			border-right: 0px;
+		}
+		
+		/* Round the lower right corner of the footer */
+		tfoot tr td:nth-child(2) {
+			border-radius: 0 0 0 15px;
+			border-left: 0px !important;
+		}
+		
+		/* Format Border between the clients */
+		td, th {
+			border-bottom: 1px solid lightgray;
+			border-left: 0px !important;
+			border-right: 0px !important;
+			vertical-align: middle !important;
+		}
+		
+		/* Border to the left of the table */
+		tr td:nth-child(10) {
+			border-left: 1px solid #909090 !important;
+		}
+		
+		/* Border at the end of the right range of the table */
+		tr td:nth-last-child(2) {
+			border-right: 1px solid #909090 !important;
+		}
+		
+		/* Remove padding for run times */
+		tbody tr td:last-child {
+			padding-top: 0 !important;
+			padding-bottom: 0 !important;
+		}
+		
+		thead th {
+			padding-top: 2px !important;
+			padding-bottom: 2px !important;
+		}
+		
+		/* Footer formatting */
+		thead th, .myfooter {
+			background-color: #484848;
+			color: white;
+			border-left: 1px solid #909090 !important;
+			border-bottom: 0px;
+		}
+		
+		/* BBorder to remove table and highlighted cells automatically generated by bootstrap */
+		table, th {
+			border: 0px !important;
+		}
+		
+		/* Format infoboxes to last error */
+		div {
+			border-radius: 5px 5px 5px 5px;
+			margin-left: 0.5%;
+			margin-right: 0.5%;
+		}
+	
+	</style>
+	
+</head>
+
+<body>
+	<div class="container">
+	
+		<h3 class="text-center"><strong>Clients</strong></h3>
+		<h5 id="lastUpdate" class="text-center"></h5>
+		<div class="text-center">
+			Show client as idle after (min): <input type="number" id="timeout" value="120" style="margin-bottom:10px" onkeydown="if(event.keyCode == 13) { updatePage(); };"/>
+				<button type="button" class="btn" onclick="updatePage();">
+      		<span class="glyphicon glyphicon-refresh"></span>
+    		</button>
+		</div>
+		<table class="table table-hover text-center">
+			<thead>
+				<tr>
+					<th rowspan="2" class="text-center">Client</th>
+					<th rowspan="2" class="text-center">Hours</th>
+					<th colspan="7" class="text-center">Workdays</th>
+					<th rowspan="2" class="text-center col-md-1">Browsing</th>
+					<th rowspan="2" class="text-center col-md-1">Mailing</th>
+					<th rowspan="2" class="text-center col-md-1">Printing</th>
+					<th rowspan="2" class="text-center col-md-1">Copy Files</th>
+					<th rowspan="2" class="text-center col-md-1">Copy<br/>Sea</th>
+					<th rowspan="2" class="text-center col-md-1">SSH</th>
+					<th rowspan="2" class="text-center col-md-1">Meeting</th>
+					<th rowspan="2" class="text-center col-md-1">Offline</th>
+					<th rowspan="2" class="text-center col-md-1">Private</th>
+					<th rowspan="2" class="text-center col-md-1">Breaks</th>
+				</tr>
+				<tr>
+					<th class="text-center">M</th>
+					<th class="text-center">T</th>
+					<th class="text-center">W</th>
+					<th class="text-center">T</th>
+					<th class="text-center">F</th>
+					<th class="text-center">S</th>
+					<th class="text-center">S</th>
+				</tr>
+			</thead>
+			<tbody id="instances">
+			</tbody>
+			<tfoot>
+				<tr id="footer">
+				</tr>
+			</tfoot>
+		</table>
+	</div>
+</body>
+</html>

@@ -1,0 +1,6 @@
+packages/mailing/mailing.py
+packages/mailing/mail.ini
+packages/browsing/bbrowsing.txt
+packages/browsing/pbrowsing.txt
+packages/browsing/privateSearch.txt
+packages/browsing/businessSearch.txt
