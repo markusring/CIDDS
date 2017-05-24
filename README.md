@@ -1,4 +1,5 @@
 # CIDDS
 Coburg Intrusion Detection Data Sets
 
-A link to the published data set is coming soon. 
+The CIDDS-001 data set is available at: https://www.hs-coburg.de/cidds
+ 
