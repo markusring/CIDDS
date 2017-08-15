@@ -31,7 +31,7 @@ apt-get -y upgrade
 #postfix configuration
 mysql -uroot --password=PWfMS2015 -e "CREATE DATABASE postfixdb; GRANT ALL PRIVILEGES ON postfixdb.* TO 'postfix'@'localhost' IDENTIFIED BY 'MYSQLPW'; FLUSH PRIVILEGES;"
 cd /var/www
-wget --content-disposition http://sourceforge.net/projects/postfixadmin/files/latest/download?source=files
+wget --content-disposition https://sourceforge.net/projects/postfixadmin/files/postfixadmin/postfixadmin-3.0.2/postfixadmin-3.0.2.tar.gz/download
 tar xfvz postfixadmin-*.tar.gz
 mv postfixadmin*/ postfixadmin
 chown www-data:www-data -R postfixadmin

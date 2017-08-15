@@ -5,7 +5,7 @@ from packages.copyFiles import copyFiles
 from packages.copyFiles import copySea
 from packages.printing import printing
 from packages.ssh import sshConnections
-from packages.attacking import attacking
+
 
 from subprocess import Popen, check_output
 from ConfigParser import SafeConfigParser
@@ -19,6 +19,9 @@ import platform
 import sys
 import socket
 import os
+
+if platform.system() == "Linux":
+    from packages.attacking import attacking
 
 # Init atWork parameters
 isTimeToWork = 0
